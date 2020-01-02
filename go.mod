@@ -8,3 +8,5 @@ require (
 	github.com/rivo/tview v0.0.0-20181126113627-0a18dea45814
 	golang.org/x/text v0.3.0 // indirect
 )
+
+go 1.13

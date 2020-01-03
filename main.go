@@ -31,6 +31,14 @@ func main() {
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
 	app := tview.NewApplication().SetRoot(tree, true)
 
+	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyRune && event.Rune() == 'q' {
+			app.Stop()
+		}
+
+		return event
+	})
+
 	raw, err := exec.Command("go", "test", "-list=.*", "-json", dir).Output()
 	if err != nil {
 		panic(err)

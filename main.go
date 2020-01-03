@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"strings"
 
-	//"github.com/gdamore/tcell"
+	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 )
 
@@ -29,12 +29,14 @@ func main() {
 
 	root := tview.NewTreeNode("")
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
+	app := tview.NewApplication().SetRoot(tree, true)
 
 	raw, err := exec.Command("go", "test", "-list=.*", "-json", dir).Output()
 	if err != nil {
 		panic(err)
 	}
 
+	packageNodes := map[string]*tview.TreeNode{}
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
 	for scanner.Scan() {
 		testLine := TestLine{}
@@ -44,22 +46,36 @@ func main() {
 		}
 
 		if testLine.Action == "output" && strings.HasPrefix(testLine.Output, "Test") {
+			packageNode, ok := packageNodes[testLine.Package]
+			if !ok {
+				packageNode = tview.NewTreeNode(testLine.Package).SetColor(tcell.ColorGreen).SetSelectable(true)
+				packageNodes[testLine.Package] = packageNode
+				root.AddChild(packageNode)
+			}
+
 			node := tview.NewTreeNode(testLine.Output).SetReference(testLine.Output).SetSelectable(true)
-			root.AddChild(node)
+			packageNode.AddChild(node)
 		}
 	}
 
 	log.Print("Ready")
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
+		if len(node.GetChildren()) != 0 {
+			node.SetExpanded(!node.IsExpanded())
+			return
+		}
+
+		reference := node.GetReference()
+		if reference == nil {
+			return
+		}
+
+		testName := reference.(string)
+
+		node.SetText(fmt.Sprintf("R %s", testName))
+
 		go func() {
-			reference := node.GetReference()
-			if reference == nil {
-				return
-			}
-
-			testName := reference.(string)
-
 			raw, err := exec.Command("go", "test", "-run", testName, "-json", dir).Output()
 			if err != nil {
 				panic(err)
@@ -74,15 +90,15 @@ func main() {
 				}
 
 				if testLine.Action == "pass" {
-					node.SetText(fmt.Sprintf("P %s", testName))
+					app.QueueUpdateDraw(func() { node.SetText(fmt.Sprintf("P %s", testName)) })
 				} else if testLine.Action == "fail" {
-					node.SetText(fmt.Sprintf("F %s", testName))
+					app.QueueUpdateDraw(func() { node.SetText(fmt.Sprintf("F %s", testName)) })
 				}
 			}
 		}()
 	})
 
-	if err := tview.NewApplication().SetRoot(tree, true).Run(); err != nil {
+	if err := app.Run(); err != nil {
 		panic(err)
 	}
 

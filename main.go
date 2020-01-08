@@ -37,10 +37,16 @@ func main() {
 		dir = os.Args[1]
 	}
 
+	helpText := tview.NewTextView().SetText("space = Select Highlighted Test r = Run Selected Tests")
+
 	selectedTests := make(map[*tview.TreeNode]bool)
 	root := tview.NewTreeNode("")
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
-	app = tview.NewApplication().SetRoot(tree, true)
+
+	layout := tview.NewFlex().SetDirection(tview.FlexRow)
+	layout.AddItem(tree, 0, 1, true)
+	layout.AddItem(helpText, 1, 0, false)
+	app = tview.NewApplication().SetRoot(layout, true)
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyRune {
@@ -120,6 +126,7 @@ func runSelectedTests(selectedTests map[*tview.TreeNode]bool) {
 		runTest(testNode)
 	}
 }
+
 func runTest(node *tview.TreeNode) {
 	reference := node.GetReference()
 	if reference == nil {

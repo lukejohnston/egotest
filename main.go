@@ -21,6 +21,13 @@ type TestLine struct {
 	Output  string
 }
 
+type TestItem struct {
+	Node       *tview.TreeNode
+	Name       string
+	Package    string
+	lastOutput *strings.Builder
+}
+
 var dir string
 var app *tview.Application
 
@@ -39,7 +46,7 @@ func main() {
 
 	helpText := tview.NewTextView().SetText("space = Select Highlighted Test r = Run Selected Tests")
 
-	selectedTests := make(map[*tview.TreeNode]bool)
+	selectedTests := make(map[*TestItem]bool)
 	root := tview.NewTreeNode("")
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
 
@@ -82,8 +89,13 @@ func main() {
 				root.AddChild(packageNode)
 			}
 
-			node := tview.NewTreeNode(fmt.Sprintf("  ( ) %s", testLine.Output)).SetReference(testLine.Output).SetSelectable(true)
-			packageNode.AddChild(node)
+			node := tview.NewTreeNode(fmt.Sprintf("  ( ) %s", testLine.Output)).SetSelectable(true)
+			testItem := &TestItem{
+				Node:    node,
+				Name:    testLine.Output,
+				Package: testLine.Package,
+			}
+			packageNode.AddChild(node.SetReference(testItem))
 		}
 	}
 
@@ -95,12 +107,14 @@ func main() {
 			return
 		}
 
-		_, ok := selectedTests[node]
+		testItem := node.GetReference().(*TestItem)
+
+		_, ok := selectedTests[testItem]
 		if ok {
-			delete(selectedTests, node)
+			delete(selectedTests, testItem)
 			app.QueueUpdateDraw(func() { node.SetText(replaceAtIndex(node.GetText(), ' ', 3)) })
 		} else {
-			selectedTests[node] = true
+			selectedTests[testItem] = true
 			app.QueueUpdateDraw(func() { node.SetText(replaceAtIndex(node.GetText(), 'x', 3)) })
 		}
 	})
@@ -116,14 +130,14 @@ func replaceAtIndex(in string, r rune, i int) string {
 	return string(out)
 }
 
-func runSelectedTests(selectedTests map[*tview.TreeNode]bool) {
-	for testNode, _ := range selectedTests {
-		thisTestNode := testNode
+func runSelectedTests(selectedTests map[*TestItem]bool) {
+	for testItem, _ := range selectedTests {
+		thisTestNode := testItem.Node
 		app.QueueUpdateDraw(func() { thisTestNode.SetText(replaceAtIndex(thisTestNode.GetText(), 'R', 0)) })
 	}
 
-	for testNode, _ := range selectedTests {
-		runTest(testNode)
+	for testItem, _ := range selectedTests {
+		runTest(testItem.Node)
 	}
 }
 
@@ -133,9 +147,9 @@ func runTest(node *tview.TreeNode) {
 		return
 	}
 
-	testName := reference.(string)
+	testItem := reference.(*TestItem)
 
-	raw, err := exec.Command("go", "test", "-run", testName, "-json", dir).Output()
+	raw, err := exec.Command("go", "test", "-run", testItem.Name, "-json", dir).Output()
 	if err != nil {
 		panic(err)
 	}
